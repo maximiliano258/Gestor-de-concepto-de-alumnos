@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Concepto de Alumnos por Curso</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb; /* Even lighter gray for a cleaner look */
+        }
+        .modal {
+            display: none; position: fixed; z-index: 100;
+            left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #ffffff; margin: 10% auto; padding: 24px;
+            border-radius: 0.75rem; width: 90%; max-width: 450px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+        }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%); background-color: #2d3748; /* Darker gray */
+            color: white; padding: 12px 24px; border-radius: 0.375rem;
+            z-index: 1000; opacity: 0; transition: opacity 0.5s ease-out, bottom 0.5s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .toast.show { opacity: 1; bottom: 30px; }
+
+        /* Custom button styles */
+        .btn {
+            @apply py-2.5 px-5 rounded-lg shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150 ease-in-out;
+        }
+        .btn-primary {
+            @apply text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500;
+        }
+        .btn-secondary {
+            @apply text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:ring-indigo-500;
+        }
+        .btn-danger {
+            @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
+        }
+        .btn-success {
+             @apply text-white bg-green-500 hover:bg-green-600 focus:ring-green-400;
+        }
+        .btn-warning {
+            @apply text-white bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-400;
+        }
+        .btn-outline {
+            @apply text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:ring-indigo-500;
+        }
+        .action-btn {
+            @apply m-1 text-xs px-2 py-1; /* Smaller action buttons */
+        }
+        .course-item {
+            @apply flex justify-between items-center w-full text-left p-3 mb-2 rounded-md border border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500;
+        }
+        .course-item.selected {
+            @apply bg-indigo-100 border-indigo-500 font-semibold text-indigo-700;
+        }
+        .delete-course-btn {
+            @apply p-1 text-red-500 hover:text-red-700 focus:outline-none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto max-w-5xl p-4 sm:p-6">
+        <header class="mb-6 text-center">
+            <h1 class="text-2xl sm:text-3xl font-bold text-indigo-700">Gestor de Concepto de Alumnos</h1>
+            <p class="text-sm text-gray-500 mt-1">User ID: <span id="userIdDisplay">Cargando...</span></p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Columna de Cursos -->
+            <div class="md:col-span-1 bg-white p-5 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold text-indigo-600 mb-4">Mis Cursos</h2>
+                <div class="mb-4">
+                    <input type="text" id="courseNameInput" placeholder="Nombre del Nuevo Curso" class="w-full p-2.5 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <button id="addCourseBtn" class="btn btn-primary w-full mt-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                        Crear Curso
+                    </button>
+                </div>
+                <div id="courseList" class="max-h-96 overflow-y-auto">
+                    <p id="noCoursesMessage" class="text-gray-500 text-sm">No has creado cursos.</p>
+                    <!-- Los cursos se listarán aquí -->
+                </div>
+            </div>
+
+            <!-- Columna de Alumnos -->
+            <div class="md:col-span-2 bg-white p-5 rounded-xl shadow-lg">
+                <div id="selectedCourseInfo" class="mb-6 text-center">
+                    <h2 class="text-xl font-semibold text-indigo-600">Selecciona un curso</h2>
+                    <p class="text-gray-500 text-sm">Los alumnos del curso seleccionado aparecerán aquí.</p>
+                </div>
+
+                <section id="addStudentSection" class="mb-6 p-4 bg-indigo-50 rounded-lg shadow-inner hidden">
+                    <h3 class="text-lg font-semibold text-indigo-600 mb-3">Añadir Alumno a <span id="currentCourseNameAddSection" class="font-bold"></span></h3>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="studentName" placeholder="Nombre del Alumno" class="flex-grow p-2.5 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <input type="number" id="initialScore" placeholder="Puntaje Inicial" value="5" class="p-2.5 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:w-32">
+                        <button id="addStudentBtn" class="btn btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                            Añadir
+                        </button>
+                    </div>
+                </section>
+
+                <section id="studentListSection">
+                    <div id="studentListContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Las tarjetas de alumnos se insertarán aquí -->
+                        <p id="noStudentsMessage" class="text-gray-500 col-span-full text-center hidden">No hay alumnos en este curso.</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastNotification" class="toast"><span id="toastMessage"></span></div>
+
+    <!-- Modal for custom points -->
+    <div id="customPointsModal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold mb-4 text-gray-800">Ajustar Puntos Manualmente</h3>
+            <input type="number" id="customPointsInput" step="0.01" placeholder="Ej: 1.5 o -0.75" class="w-full p-2.5 border border-gray-300 rounded-md mb-3">
+            <textarea id="customReasonInput" placeholder="Motivo (opcional)" class="w-full p-2.5 border border-gray-300 rounded-md mb-4" rows="2"></textarea>
+            <div class="flex justify-end gap-3">
+                <button id="cancelCustomPointsBtn" class="btn btn-outline">Cancelar</button>
+                <button id="confirmCustomPointsBtn" class="btn btn-primary">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold mb-2 text-gray-800" id="confirmationTitle">Confirmar Acción</h3>
+            <p class="text-sm text-gray-600 mb-6" id="confirmationMessage">¿Estás seguro?</p>
+            <div class="flex justify-end gap-3">
+                <button id="cancelConfirmationBtn" class="btn btn-outline">Cancelar</button>
+                <button id="confirmActionBtn" class="btn btn-danger">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, writeBatch, runTransaction, setLogLevel, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const rawFirebaseConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        const firebaseConfig = JSON.parse(rawFirebaseConfig);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-concept-app-cursos';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, auth, db, userId = null;
+        let coursesCollectionRef;
+        let currentSelectedCourseId = null;
+        let currentSelectedCourseName = null;
+        let studentsUnsubscribe = null; // To detach listener when changing course
+
+        // UI Elements
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const courseNameInput = document.getElementById('courseNameInput');
+        const addCourseBtn = document.getElementById('addCourseBtn');
+        const courseList = document.getElementById('courseList');
+        const noCoursesMessage = document.getElementById('noCoursesMessage');
+        
+        const selectedCourseInfo = document.getElementById('selectedCourseInfo');
+        const addStudentSection = document.getElementById('addStudentSection');
+        const currentCourseNameAddSection = document.getElementById('currentCourseNameAddSection');
+        const studentNameInput = document.getElementById('studentName');
+        const initialScoreInput = document.getElementById('initialScore');
+        const addStudentBtn = document.getElementById('addStudentBtn');
+        const studentListContainer = document.getElementById('studentListContainer');
+        const noStudentsMessage = document.getElementById('noStudentsMessage');
+
+        const toastNotification = document.getElementById('toastNotification');
+        const toastMessage = document.getElementById('toastMessage');
+
+        const customPointsModal = document.getElementById('customPointsModal');
+        const customPointsInput = document.getElementById('customPointsInput');
+        const customReasonInput = document.getElementById('customReasonInput');
+        const cancelCustomPointsBtn = document.getElementById('cancelCustomPointsBtn');
+        const confirmCustomPointsBtn = document.getElementById('confirmCustomPointsBtn');
+        let currentStudentIdForCustomPoints = null;
+
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmationTitle = document.getElementById('confirmationTitle');
+        const confirmationMessage = document.getElementById('confirmationMessage');
+        const cancelConfirmationBtn = document.getElementById('cancelConfirmationBtn');
+        const confirmActionBtn = document.getElementById('confirmActionBtn');
+        let confirmCallback = null;
+
+
+        function showToast(message, duration = 3000) {
+            toastMessage.textContent = message;
+            toastNotification.classList.add('show');
+            setTimeout(() => {
+                toastNotification.classList.remove('show');
+            }, duration);
+        }
+        
+        function openConfirmationModal(title, message, onConfirm) {
+            confirmationTitle.textContent = title;
+            confirmationMessage.textContent = message;
+            confirmCallback = onConfirm;
+            confirmationModal.style.display = 'block';
+        }
+
+        function closeConfirmationModal() {
+            confirmationModal.style.display = 'none';
+            confirmCallback = null;
+        }
+
+        confirmActionBtn.addEventListener('click', () => {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeConfirmationModal();
+        });
+        cancelConfirmationBtn.addEventListener('click', closeConfirmationModal);
+
+
+        async function initializeFirebaseServices() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('debug');
+                await setPersistence(auth, browserLocalPersistence);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        coursesCollectionRef = collection(db, "artifacts", appId, "users", userId, "courses");
+                        loadCourses();
+                    } else {
+                        userIdDisplay.textContent = "Autenticando...";
+                        if (initialAuthToken) {
+                            try {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } catch (error) {
+                                console.error("Error signing in with custom token, trying anonymous:", error);
+                                await signInAnonymously(auth);
+                            }
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase: ", error);
+                userIdDisplay.textContent = "Error de Firebase";
+                showToast("Error al conectar con Firebase.", 5000);
+            }
+        }
+
+        async function addCourse() {
+            if (!userId) { showToast("Usuario no autenticado."); return; }
+            const courseName = courseNameInput.value.trim();
+            if (!courseName) { showToast("Ingresa un nombre para el curso."); return; }
+
+            try {
+                const newCourseRef = await addDoc(coursesCollectionRef, {
+                    name: courseName,
+                    createdAt: serverTimestamp()
+                });
+                showToast(`Curso "${courseName}" creado.`);
+                courseNameInput.value = '';
+            } catch (error) {
+                console.error("Error adding course: ", error);
+                showToast("Error al crear curso.");
+            }
+        }
+
+        function loadCourses() {
+            if (!userId || !coursesCollectionRef) return;
+            onSnapshot(query(coursesCollectionRef), (snapshot) => {
+                courseList.innerHTML = '';
+                if (snapshot.empty) {
+                    noCoursesMessage.style.display = 'block';
+                } else {
+                    noCoursesMessage.style.display = 'none';
+                    let coursesArray = [];
+                    snapshot.forEach(doc => coursesArray.push({ id: doc.id, ...doc.data() }));
+                    
+                    coursesArray.sort((a,b) => a.name.localeCompare(b.name));
+
+                    coursesArray.forEach(course => {
+                        const courseDiv = document.createElement('div');
+                        courseDiv.className = 'course-item';
+                        courseDiv.dataset.courseId = course.id; 
+                        
+                        const courseButton = document.createElement('span'); 
+                        courseButton.textContent = course.name;
+                        courseButton.className = 'flex-grow cursor-pointer';
+                        courseButton.onclick = () => handleCourseSelection(course.id, course.name);
+
+                        const deleteButton = document.createElement('button');
+                        deleteButton.className = 'delete-course-btn';
+                        deleteButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
+                        deleteButton.setAttribute('aria-label', `Eliminar curso ${course.name}`);
+                        deleteButton.onclick = (e) => {
+                            e.stopPropagation(); 
+                            deleteCourse(course.id, course.name);
+                        };
+                        
+                        courseDiv.appendChild(courseButton);
+                        courseDiv.appendChild(deleteButton);
+
+                        if (course.id === currentSelectedCourseId) {
+                            courseDiv.classList.add('selected');
+                        }
+                        courseList.appendChild(courseDiv);
+                    });
+                }
+            }, (error) => {
+                console.error("Error loading courses: ", error);
+                showToast("Error al cargar cursos.");
+            });
+        }
+
+        function handleCourseSelection(courseId, courseName) {
+            currentSelectedCourseId = courseId;
+            currentSelectedCourseName = courseName;
+
+            document.querySelectorAll('.course-item.selected').forEach(div => div.classList.remove('selected'));
+            const selectedDiv = courseList.querySelector(`.course-item[data-course-id="${courseId}"]`);
+            if (selectedDiv) {
+                 selectedDiv.classList.add('selected');
+            }
+
+
+            selectedCourseInfo.innerHTML = `<h2 class="text-xl font-semibold text-indigo-700">Alumnos de: ${courseName}</h2>`;
+            addStudentSection.classList.remove('hidden');
+            currentCourseNameAddSection.textContent = courseName;
+            noStudentsMessage.classList.add('hidden'); 
+
+            loadStudents(courseId);
+        }
+
+        async function addStudent() {
+            if (!userId || !currentSelectedCourseId) {
+                showToast("Selecciona un curso primero.");
+                return;
+            }
+            const name = studentNameInput.value.trim();
+            const initialScore = parseFloat(initialScoreInput.value);
+
+            if (!name) { showToast("Ingresa el nombre del alumno."); return; }
+            if (isNaN(initialScore)) { showToast("Ingresa un puntaje inicial válido."); return; }
+
+            const studentsRef = collection(db, "artifacts", appId, "users", userId, "courses", currentSelectedCourseId, "students");
+            try {
+                await addDoc(studentsRef, {
+                    name: name,
+                    score: initialScore,
+                    createdAt: serverTimestamp(), 
+                    history: [{ 
+                        points: initialScore,
+                        reason: "Puntaje Inicial",
+                        timestamp: new Date() 
+                    }]
+                });
+                showToast(`Alumno "${name}" añadido a ${currentSelectedCourseName}.`);
+                studentNameInput.value = '';
+            } catch (error) {
+                console.error("Error adding student: ", error);
+                showToast("Error al añadir alumno.");
+            }
+        }
+        
+        function loadStudents(courseId) {
+            if (studentsUnsubscribe) {
+                studentsUnsubscribe(); 
+            }
+            studentListContainer.innerHTML = ''; 
+
+            if (!userId || !courseId) return;
+
+            const studentsRef = collection(db, "artifacts", appId, "users", userId, "courses", courseId, "students");
+            studentsUnsubscribe = onSnapshot(query(studentsRef), (snapshot) => {
+                studentListContainer.innerHTML = ''; 
+                if (snapshot.empty) {
+                    noStudentsMessage.classList.remove('hidden');
+                } else {
+                    noStudentsMessage.classList.add('hidden');
+                    let studentsArray = [];
+                    snapshot.forEach(doc => studentsArray.push({ id: doc.id, ...doc.data() }));
+                    
+                    studentsArray.sort((a,b) => a.name.localeCompare(b.name));
+
+                    studentsArray.forEach(student => {
+                        const studentCard = createStudentCard(student, courseId);
+                        studentListContainer.appendChild(studentCard);
+                    });
+                }
+            }, (error) => {
+                console.error(`Error loading students for course ${courseId}: `, error);
+                showToast("Error al cargar alumnos.");
+                studentListContainer.innerHTML = '<p class="text-red-500 col-span-full text-center">Error al cargar alumnos.</p>';
+            });
+        }
+
+        function createStudentCard(student, courseId) {
+            const card = document.createElement('div');
+            card.className = 'bg-gray-50 p-4 rounded-lg shadow hover:shadow-md transition-shadow duration-150';
+            card.dataset.id = student.id;
+
+            const nameEl = document.createElement('h3');
+            nameEl.className = 'text-md font-semibold text-indigo-700 mb-1';
+            nameEl.textContent = student.name;
+
+            const scoreEl = document.createElement('p');
+            scoreEl.className = 'text-xl font-bold mb-2';
+            scoreEl.id = `score-${student.id}`;
+            const currentScore = typeof student.score === 'number' ? student.score : 0;
+            scoreEl.textContent = `Concepto: ${currentScore.toFixed(2)}`;
+            
+            if (currentScore < 3) scoreEl.classList.add('text-red-500');
+            else if (currentScore < 7) scoreEl.classList.add('text-yellow-500');
+            else scoreEl.classList.add('text-green-600');
+
+            const actionsContainer = document.createElement('div');
+            actionsContainer.className = 'mb-2 border-t pt-2 mt-2';
+            
+            const commonActions = [
+                { label: "Pizarrón (+0.25)", points: 0.25, class: 'btn-success action-btn' },
+                { label: "No Pasa (-0.25)", points: -0.25, class: 'btn-warning action-btn' },
+                { label: "Atención (-0.50)", points: -0.50, class: 'btn-warning action-btn' },
+                { label: "Participa (+0.50)", points: 0.50, class: 'btn-success action-btn' },
+                { label: "Tarea Inc. (-1.00)", points: -1.00, class: 'btn-danger action-btn' }
+            ];
+            commonActions.forEach(action => {
+                const btn = document.createElement('button');
+                btn.textContent = action.label;
+                btn.className = `btn ${action.class}`;
+                btn.onclick = () => updateStudentScore(courseId, student.id, action.points, action.label.split('(')[0].trim());
+                actionsContainer.appendChild(btn);
+            });
+
+            const customPointsBtn = document.createElement('button');
+            customPointsBtn.textContent = 'Ajuste Manual';
+            customPointsBtn.className = 'btn btn-secondary w-full mt-2 text-xs py-1.5';
+            customPointsBtn.onclick = () => openCustomPointsModal(student.id);
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>Eliminar`;
+            deleteBtn.className = 'btn btn-danger w-full mt-1 text-xs py-1.5';
+            deleteBtn.onclick = () => {
+                openConfirmationModal(
+                    `Eliminar Alumno`,
+                    `¿Estás seguro de que quieres eliminar a ${student.name} del curso ${currentSelectedCourseName}? Esta acción no se puede deshacer.`,
+                    () => deleteStudent(courseId, student.id, student.name)
+                );
+            };
+            
+            card.appendChild(nameEl);
+            card.appendChild(scoreEl);
+            card.appendChild(actionsContainer);
+            card.appendChild(customPointsBtn);
+            card.appendChild(deleteBtn);
+
+            const historyToggle = document.createElement('button');
+            historyToggle.textContent = `Historial (${student.history?.length || 0})`;
+            historyToggle.className = 'text-xs text-indigo-500 hover:underline mt-2 block w-full text-left';
+            const historyLogEl = document.createElement('div');
+            historyLogEl.id = `history-${student.id}`;
+            historyLogEl.className = 'text-xs text-gray-600 mt-1 max-h-24 overflow-y-auto border-t pt-1 hidden';
+            
+            historyToggle.onclick = () => {
+                historyLogEl.classList.toggle('hidden');
+                historyToggle.textContent = historyLogEl.classList.contains('hidden') ? `Ver Historial (${student.history?.length || 0})` : `Ocultar Historial (${student.history?.length || 0})`;
+            };
+            
+            card.appendChild(historyToggle);
+            card.appendChild(historyLogEl);
+            updateHistoryLog(student.id, student.history || []); 
+
+            return card;
+        }
+
+        function updateHistoryLog(studentId, historyArray) {
+            const historyLogEl = document.getElementById(`history-${studentId}`); 
+            const historyToggleBtn = historyLogEl ? historyLogEl.previousElementSibling : null;
+            if (!historyLogEl) return;
+
+            historyLogEl.innerHTML = '';
+            if (historyArray && historyArray.length > 0) {
+                const sortedHistory = [...historyArray].sort((a, b) => {
+                    const timeA = a.timestamp?.seconds ? a.timestamp.seconds : (a.timestamp instanceof Date ? a.timestamp.getTime()/1000 : 0);
+                    const timeB = b.timestamp?.seconds ? b.timestamp.seconds : (b.timestamp instanceof Date ? b.timestamp.getTime()/1000 : 0);
+                    return timeB - timeA;
+                });
+                sortedHistory.forEach(entry => {
+                    const item = document.createElement('p');
+                    let dateStr = 'Fecha desc.';
+                    if (entry.timestamp?.seconds) {
+                        dateStr = new Date(entry.timestamp.seconds * 1000).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+                    } else if (entry.timestamp instanceof Date) { 
+                        dateStr = entry.timestamp.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+                    }
+                    const pointsVal = typeof entry.points === 'number' ? entry.points : 0;
+                    item.textContent = `[${dateStr}] ${entry.reason || 'Sin motivo'}: ${pointsVal > 0 ? '+' : ''}${pointsVal.toFixed(2)}`;
+                    historyLogEl.appendChild(item);
+                });
+            } else {
+                historyLogEl.textContent = 'Sin historial.';
+            }
+            if (historyToggleBtn) { 
+                 historyToggleBtn.textContent = historyLogEl.classList.contains('hidden') ? `Ver Historial (${historyArray?.length || 0})` : `Ocultar Historial (${historyArray?.length || 0})`;
+            }
+        }
+        
+        async function updateStudentScore(courseId, studentId, pointsChange, reason = "Ajuste manual") {
+            if (!userId) { showToast("Usuario no autenticado."); return; }
+            const studentDocRef = doc(db, "artifacts", appId, "users", userId, "courses", courseId, "students", studentId);
+            try {
+                const studentSnap = await getDoc(studentDocRef); 
+                if (studentSnap.exists()) {
+                    const studentData = studentSnap.data();
+                    const currentScore = typeof studentData.score === 'number' ? studentData.score : 0;
+                    const newScore = currentScore + pointsChange;
+
+                    // MODIFIED: Use new Date() for timestamp in history array to avoid serverTimestamp issue with arrayUnion
+                    const newHistoryEntry = { 
+                        points: pointsChange, 
+                        reason: reason, 
+                        timestamp: new Date() 
+                    };
+
+                    await updateDoc(studentDocRef, { 
+                        score: newScore, 
+                        history: arrayUnion(newHistoryEntry) 
+                    });
+                    showToast(`Puntaje de ${studentData.name} actualizado a ${newScore.toFixed(2)}.`);
+                } else {
+                    showToast("Error: Alumno no encontrado.");
+                }
+            } catch (error) {
+                console.error("Error updating score: ", error);
+                showToast("Error al actualizar puntaje.");
+            }
+        }
+
+        function openCustomPointsModal(studentId) {
+            currentStudentIdForCustomPoints = studentId;
+            customPointsInput.value = '';
+            customReasonInput.value = '';
+            customPointsModal.style.display = 'block';
+            customPointsInput.focus();
+        }
+
+        function closeCustomPointsModal() {
+            customPointsModal.style.display = 'none';
+            currentStudentIdForCustomPoints = null;
+        }
+
+        async function handleConfirmCustomPoints() {
+            if (!currentStudentIdForCustomPoints || !currentSelectedCourseId) return;
+            const points = parseFloat(customPointsInput.value);
+            const reason = customReasonInput.value.trim() || "Ajuste manual";
+            if (isNaN(points)) { showToast("Ingresa un valor numérico para los puntos."); return; }
+            await updateStudentScore(currentSelectedCourseId, currentStudentIdForCustomPoints, points, reason);
+            closeCustomPointsModal();
+        }
+
+        async function deleteStudent(courseId, studentId, studentName) {
+            if (!userId) { showToast("Usuario no autenticado."); return; }
+            const studentDocRef = doc(db, "artifacts", appId, "users", userId, "courses", courseId, "students", studentId);
+            try {
+                await deleteDoc(studentDocRef);
+                showToast(`Alumno "${studentName}" eliminado de ${currentSelectedCourseName}.`);
+            } catch (error) {
+                console.error("Error deleting student: ", error);
+                showToast("Error al eliminar alumno.");
+            }
+        }
+        
+        async function deleteCourse(courseId, courseName) {
+            if (!userId) { showToast("Usuario no autenticado."); return; }
+        
+            openConfirmationModal(
+                `Eliminar Curso`,
+                `¿Estás seguro de que quieres eliminar el curso "${courseName}"? TODOS los alumnos y sus datos en este curso también serán eliminados. Esta acción no se puede deshacer.`,
+                async () => {
+                    const courseDocRef = doc(db, "artifacts", appId, "users", userId, "courses", courseId);
+                    try {
+                        const studentsRef = collection(db, "artifacts", appId, "users", userId, "courses", courseId, "students");
+                        const studentsSnapshot = await getDocs(studentsRef); 
+                        
+                        if (!studentsSnapshot.empty) {
+                            const batch = writeBatch(db);
+                            studentsSnapshot.forEach(studentDoc => {
+                                batch.delete(studentDoc.ref);
+                            });
+                            await batch.commit(); 
+                            console.log(`Todos los alumnos del curso "${courseName}" han sido eliminados.`);
+                        } else {
+                            console.log(`No hay alumnos para eliminar en el curso "${courseName}".`);
+                        }
+
+                        await deleteDoc(courseDocRef); 
+                        showToast(`Curso "${courseName}" y todos sus alumnos eliminados.`);
+                        
+                        if (currentSelectedCourseId === courseId) {
+                            currentSelectedCourseId = null;
+                            currentSelectedCourseName = null;
+                            studentListContainer.innerHTML = '';
+                            addStudentSection.classList.add('hidden');
+                            selectedCourseInfo.innerHTML = `<h2 class="text-xl font-semibold text-indigo-600">Selecciona un curso</h2><p class="text-gray-500 text-sm">Los alumnos del curso seleccionado aparecerán aquí.</p>`;
+                            noStudentsMessage.classList.add('hidden');
+                        }
+                    } catch (error) {
+                        console.error("Error deleting course and its students: ", error);
+                        showToast("Error al eliminar curso.");
+                    }
+                }
+            );
+        }
+
+
+        // Event Listeners
+        addCourseBtn.addEventListener('click', addCourse);
+        addStudentBtn.addEventListener('click', addStudent);
+        confirmCustomPointsBtn.addEventListener('click', handleConfirmCustomPoints);
+        cancelCustomPointsBtn.addEventListener('click', closeCustomPointsModal);
+        
+        window.onclick = function(event) {
+            if (event.target == customPointsModal) closeCustomPointsModal();
+            if (event.target == confirmationModal) closeConfirmationModal();
+        }
+
+        initializeFirebaseServices();
+
+    </script>
+</body>
+</html>
