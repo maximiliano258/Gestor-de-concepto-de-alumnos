@@ -149,19 +149,29 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, writeBatch, runTransaction, setLogLevel, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, writeBatch, setLogLevel, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const rawFirebaseConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-        const firebaseConfig = JSON.parse(rawFirebaseConfig);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-concept-app-cursos';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // --- INICIO DE LA CONFIGURACIÓN DE FIREBASE ---
+        // Este bloque ahora contiene tu configuración real.
+        const firebaseConfig = {
+            apiKey: "AIzaSyAyruonY5rjXaLtgEjuouohhw46KV5Zve4",
+            authDomain: "concepto-de-alumnos.firebaseapp.com",
+            projectId: "concepto-de-alumnos",
+            storageBucket: "concepto-de-alumnos.firebasestorage.app", // CORREGIDO AL VALOR ORIGINAL
+            messagingSenderId: "863964895153",
+            appId: "1:863964895153:web:a8679164c8f615bd5c4f90"
+        };
+
+        const appId = 'concepto-de-alumnos-app';
+        // --- FIN DE LA CONFIGURACIÓN DE FIREBASE ---
+
 
         let app, auth, db, userId = null;
         let coursesCollectionRef;
         let currentSelectedCourseId = null;
         let currentSelectedCourseName = null;
-        let studentsUnsubscribe = null; // To detach listener when changing course
+        let studentsUnsubscribe = null; 
 
         // UI Elements
         const userIdDisplay = document.getElementById('userIdDisplay');
@@ -242,22 +252,13 @@
                         loadCourses();
                     } else {
                         userIdDisplay.textContent = "Autenticando...";
-                        if (initialAuthToken) {
-                            try {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } catch (error) {
-                                console.error("Error signing in with custom token, trying anonymous:", error);
-                                await signInAnonymously(auth);
-                            }
-                        } else {
-                            await signInAnonymously(auth);
-                        }
+                        await signInAnonymously(auth);
                     }
                 });
             } catch (error) {
                 console.error("Error initializing Firebase: ", error);
                 userIdDisplay.textContent = "Error de Firebase";
-                showToast("Error al conectar con Firebase.", 5000);
+                showToast("Error al conectar con Firebase. Revisa la configuración en el HTML y la consola.", 5000);
             }
         }
 
@@ -528,7 +529,6 @@
                     const currentScore = typeof studentData.score === 'number' ? studentData.score : 0;
                     const newScore = currentScore + pointsChange;
 
-                    // MODIFIED: Use new Date() for timestamp in history array to avoid serverTimestamp issue with arrayUnion
                     const newHistoryEntry = { 
                         points: pointsChange, 
                         reason: reason, 
@@ -614,7 +614,7 @@
                             currentSelectedCourseName = null;
                             studentListContainer.innerHTML = '';
                             addStudentSection.classList.add('hidden');
-                            selectedCourseInfo.innerHTML = `<h2 class="text-xl font-semibold text-indigo-600">Selecciona un curso</h2><p class="text-gray-500 text-sm">Los alumnos del curso seleccionado aparecerán aquí.</p>`;
+                            selectedCourseInfo.innerHTML = `<h2 class="text-xl font-semibold text-indigo-700">Selecciona un curso</h2><p class="text-gray-500 text-sm">Los alumnos del curso seleccionado aparecerán aquí.</p>`;
                             noStudentsMessage.classList.add('hidden');
                         }
                     } catch (error) {
